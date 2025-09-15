@@ -1,0 +1,270 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+  "name": "Two-Value Comparison Bar Chart",  
+  "description": "This is designed to compare two measures, a <Base> value and an <Actual> value. The difference between both is displayed in percent and absolute values. You can compare actuals vs. plan values or values between different points in time (e.g. comparison with last year). Optionally, you can add a third category value named <Attribute>. Then the comparison between <Base> and <Actual> is performed for each <Attribute>. In an IBCS manner, the chart is scaled identically for all <Attributes>. Use the params section to define colors and text.",
+  "data": {
+    "values": [
+      {"Base": 9000, "Actual": 9323, "Attribute": "Region East"},
+      {"Base": 12300, "Actual": 11323, "Attribute": "Region West"},
+      {"Base": 17300, "Actual": 19323, "Attribute": "Region North"},
+      {"Base": 8300, "Actual": 11323, "Attribute": "Region South"}
+    ]
+  },
+  "params": [
+    {
+      "name": "manual_attribute_name", //give your category a name if no attribute is being used
+      "value": "# Sold Units"
+    },      
+    {
+      "name": "actual_name",  //label name for actual measure
+      "value": "Actual:"
+    },
+    {
+      "name": "base_name",  //label name for base measure
+      "value": "Planned:"
+    },
+    {
+      "name": "actual_color",
+      "value": "black"
+    },
+    {
+      "name": "base_color",
+      "value": "#a3daff"
+    },    
+    {"name": "bar_height", "value": 20}, //size the displayed bars here
+    {
+      "name": "category_label_size",
+      "value": 11
+    },
+    {"name": "text_size", "value": 10},
+    {
+      "name": "background_color",  //define your visuals background color here
+      "value": "#FFFFFF"
+    }
+  ],
+  "height": {"step": 65},  //relevant if you display several attributes. Space between each attribute.
+  "transform": [
+    {
+      "filter": "datum['Base'] != null"
+    },
+    {
+      "calculate": "isDefined(datum['Attribute']) ? datum['Attribute'] : manual_attribute_name" ,
+      "as": "Attribute_Remapping"  //if there is no third value named Attribute then use the manual_attribute_name
+    },    
+    {
+      "calculate": "join(split(datum['Attribute_Remapping'],' '),'\\n')",
+      "as": "Attribute_Name"  //tried to break the attribute name in selveral lines but does not work.
+    },        
+    {
+      "calculate": "datum['Actual'] - datum['Base']",
+      "as": "abs_diff" 
+    },
+    {
+      "calculate": "datum['Base'] === null ? null : datum['Actual'] === null ? -1 : (datum['Actual'] - datum['Base'])/datum['Base']",
+      "as": "rel_diff"
+    },
+    {
+      "calculate": "datum['Base'] === null || datum['Actual'] === null ? '' : format(datum.rel_diff, ',.1%')",
+      "as": "rel_diff_formatted"
+    },
+    {
+      "joinaggregate": [
+        {
+          "op": "max",
+          "field": "rel_diff",
+          "as": "max_rel_diff"
+        }  //the idea is that all bars are scaled identically. So we need to find out the maximum relative difference for equal scaling
+      ]
+    },
+    {
+      "calculate": "max(1,1 + datum['max_rel_diff'])",
+      "as": "x_pos_max_total_percent" //max x position is equal for all attributes
+    },
+    {
+      "calculate": "datum['Base'] === null  ? null : 1",
+      "as": "x_pos_base"
+    },
+    {
+      "calculate": "(1 + datum['rel_diff'])",
+      "as": "x_pos_actual"
+    },
+    {
+      "calculate": "max(datum['x_pos_base'],datum['x_pos_actual'])",
+      "as": "x_pos_max"
+    },
+    {
+      "calculate": "datum.rel_diff > 0.2 ? '#61822A' : datum.rel_diff < -0.2 ? '#c90a01' : datum.rel_diff >= 0 ? '#a0b47f' : '#df6c67'",
+      "as": "color_indicator"
+    },
+    {
+      "calculate": "datum.abs_diff > 0 ? ',.0f' : ',.0f'",
+      "as": "pbi_delta_number_format"
+    },
+    {
+      "calculate": "datum['Base'] === null || datum['Actual'] === null ? '' : format(datum.abs_diff, ',.0f')",
+      "as": "text_header"
+    },
+    {
+      "calculate": "datum['Base'] === null ? '' : base_name + ' ' + format(datum.Base, ',.0f')",
+      "as": "base_label_text_formatted"
+    },
+    {
+      "calculate": "datum['Actual'] === null ? actual_name + '0€' : actual_name + ' ' + format(datum.Actual,',.0f')",
+      "as": "actual_label_text_formatted"
+    },
+    {
+      "calculate": "datum['__selected__'] == 'off' ? 'url(#diagonal-stripe-6-50)' : 'url(#diagonal-stripe-6-50)'",
+      "as": "base_bar_fill"
+    }
+  ],
+  "encoding": {
+    "x": {
+      "type": "quantitative",
+      "scale": {"nice": false},
+      "title": null,
+      "axis": {
+        "title": null,
+        "format": ".0%",
+        "tickCount": 5
+      }
+    },
+    "y": {
+      "field": "Attribute_Name",
+      "type": "nominal",
+      "title": null,
+      "sort": {"field": "Attribute_Name"}
+    },
+    "opacity": {
+      "condition": {
+        "test": {
+          "field": "__selected__",
+          "equal": "off"
+        },
+        "value": 0.4
+      },
+      "value": 1
+    }
+  },
+  "layer": [
+    {
+      "mark": {
+        "description": "Base bar",
+        "type": "bar",
+        "orient": "horizontal",
+        "color": {
+          "expr": "base_color"
+        },
+        "stroke": "black",
+        "strokeWidth": 2,        
+        "size": {
+          "expr": "1 * bar_height"
+        },
+        "yOffset": 0
+      },
+      "encoding": {
+        "x": {"field": "x_pos_base"},
+        "tooltip": [
+          {
+            "title": "Attribute",
+            "field": "Attribute_Name"
+          },
+          {
+            "title": "Base Value",
+            "field": "base_label_text_formatted"
+          },            
+          {
+            "title": "Actual Value",
+            "field": "actual_label_text_formatted"
+          },
+          {
+            "title": "Absolute Deviation",
+            "field": "text_header"
+          },
+          {
+            "title": "Relative Deviation",
+            "field": "rel_diff_formatted"
+          }
+        ]
+      }
+    },
+    {
+      "mark": {
+        "description": "Actual Value bar",
+        "type": "bar",
+        "size": {"expr": "0.5 * bar_height"},
+        "color": {"expr": "actual_color"},
+        "yOffset": {
+          "expr": "0.05*bar_height"
+        },
+        "tooltip": true
+      },
+      "encoding": {
+        "x": {"field": "x_pos_actual"},
+        "tooltip": [
+          {
+            "title": "Attribute",
+            "field": "Attribute_Name"
+          },
+          {
+            "title": "Base Value",
+            "field": "base_label_text_formatted"
+          },            
+          {
+            "title": "Actual Value",
+            "field": "actual_label_text_formatted"
+          },
+          {
+            "title": "Absolute Deviation",
+            "field": "text_header"
+          },
+          {
+            "title": "Relative Deviation",
+            "field": "rel_diff_formatted"
+          }
+        ]
+      }
+    },
+    {
+      "mark": {
+        "description": "Base Label Text",
+        "type": "text",
+        "dx": 0,
+        "dy": 0,
+        "xOffset": 0,
+        "yOffset": {
+          "expr": "-0.7*bar_height"
+        },
+        "align": "right",
+        "baseline": "bottom"
+      },
+      "encoding": {
+        "x": {
+          "field": "x_pos_base"
+        },
+        "text": {
+          "field": "base_label_text_formatted"
+        }
+      }
+    },
+    {
+      "mark": {
+        "description": "Actual Label Text",
+        "type": "text",
+        "dx": 0,
+        "dy": 0,
+        "xOffset": 0,
+        "yOffset": {
+          "expr": "1.3*bar_height + 1"
+        },
+        "align": "right",
+        "baseline": "bottom"
+      },
+      "encoding": {
+        "x": {"field": "x_pos_actual"},
+        "text": {
+          "field": "actual_label_text_formatted"
+        }
+      }
+    }
+  ]
+}
