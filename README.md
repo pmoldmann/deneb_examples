@@ -2,7 +2,7 @@
 examples of deneb visuals for visualisation within power bi.
 
 # about me
-I am a freelance power bi consultant 
+I am a freelance power bi consultant located in Aachen, Germany (https://paulmoldmann.de).
 
 # motivation
 I love Power BI. But sometimes the core visuals do not offer the flexibility that I need to design impressing reports. 
