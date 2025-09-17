@@ -18,10 +18,19 @@ Use the vega_lite.* files just within vega lite, for example in https://vega.git
 
 # examples
 
-## Two Measure Compare
-This is designed to compare two measures, a 'Base' value and an 'Actual' value. The difference between both is displayed in percent and absolute values. Use this to compare actuals vs. plan values or values between different points in time (e.g. comparison with last year). Optionally, you can add a third category value named 'Attribute'. Then the comparison between 'Base' and 'Actual' is performed for each '<'Attribute'. In an IBCS manner, the chart is scaled identically for all 'Attributes'. Use the params section to define colors and text.
+## Two Measure Absolute Compare
+This is designed to compare two measures, a 'Base' value and an 'Actual' value. The difference between both is displayed in percent and absolute values. Use this to compare actuals vs. plan values or values between different points in time (e.g. comparison with last year). Optionally, you can add a third category value named 'Attribute'. Then the comparison between 'Base' and 'Actual' is performed for each '<'Attribute'. In an IBCS manner, the chart is scaled identically for all 'Attributes'. <br> 
+Use the params section to define colors and text.
 
 Here an example of the single element version: <br>
-![Single Element Comparison](Two_Measure_Compare/vega_lite_example1.png)
+![Single Element Comparison](Two_Measure_Absolute_Compare/vega_lite_example1.png)
 <br>And the multiple element version:<br>
-![Multiple Element Comparison](Two_Measure_Compare/vega_lite_example2.png)
+![Multiple Element Comparison](Two_Measure_Absolute_Compare/vega_lite_example2.png)
+
+## Two Measure Relative Compare
+This is also designed to compare two measures, a 'Base' value and an 'Actual' value. But focuses to display the relative devition by centering on 0% and displaying the deviation of the actual value from the base value. 
+Optionally, you can add a third category value named 'Attribute'. Then the comparison between 'Base' and 'Actual' is performed for each '<Attribute>'. In an IBCS manner, the chart is scaled identically for all 'Attributes'. <br>
+Use the params section to define colors and text.
+
+Here an example of the single element version: <br>
+![Single Element Comparison](Two_Measure_Relative_Compare/vega_lite_example1.png)
