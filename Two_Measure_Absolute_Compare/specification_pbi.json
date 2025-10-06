@@ -1,5 +1,4 @@
 {
-  "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
   "name": "Two-Value Comparison Bar Chart",  
   "description": "This is designed to compare two measures, a <Base> value and an <Actual> value. The difference between both is displayed in percent and absolute values. You can compare actuals vs. plan values or values between different points in time (e.g. comparison with last year). Optionally, you can add a third category value named <Attribute>. Then the comparison between <Base> and <Actual> is performed for each <Attribute>. In an IBCS manner, the chart is scaled identically for all <Attributes>. Use the params section to define colors and text.",
   "data": {"name": "dataset"},
@@ -17,14 +16,32 @@
       "value": "Period Begin:"
     },
     {
+      "name": "base_type",  //Use colors in an IBCS manner: either "Actual" (filled grey), "Forecast" (filled with stripes) or "Target" (no filling)
+      "value": "Actual"
+    },
+    {
+      "name": "base_bar_actual_color",  //define the color for the base bar type "Actual"
+      "value": "#f0ebe5"
+    },    
+    {
+      "name": "use_colored_deviation",  
+      "value": "true"  //either "true" to show deviations in red (negative) and green (positive) or "false" (no differing colors
+    },    
+    {
+      "name": "positive_color",
+      "value": "#61822A"
+    },
+    {
+      "name": "negative_color",
+      "value": "#c90a01"
+    },    
+    {
       "name": "actual_color",
       "value": "black"
     },
     {
-      "name": "base_color",
-      "value": "#a3daff"
-    },    
-    {"name": "bar_height", "value": 20}, //size the displayed bars here
+      "name": "bar_height", 
+      "value": 20}, //size the displayed bars here
     {
       "name": "category_label_size",
       "value": 11
@@ -46,7 +63,7 @@
     },    
     {
       "calculate": "join(split(datum['Attribute_Remapping'],' '),'\\n')",
-      "as": "Attribute_Name"  //tried to break the attribute name in selveral lines but does not work.
+      "as": "Attribute_Name"  //tried to break the attribute name in several lines but does not work.
     },        
     {
       "calculate": "datum['Actual'] - datum['Base']",
@@ -82,12 +99,20 @@
       "as": "x_pos_actual"
     },
     {
+      "calculate": "use_colored_deviation == 'false' ? datum.x_pos_actual : datum.rel_diff > 0 ? datum.x_pos_base : datum.x_pos_actual",
+      "as": "x_pos_actual_uncolored"  //x-position for the actual bar (uncolored part); 
+    },       
+    {
       "calculate": "max(datum['x_pos_base'],datum['x_pos_actual'])",
       "as": "x_pos_max"
     },
     {
-      "calculate": "datum.rel_diff > 0.2 ? '#61822A' : datum.rel_diff < -0.2 ? '#c90a01' : datum.rel_diff >= 0 ? '#a0b47f' : '#df6c67'",
-      "as": "color_indicator"
+      "calculate": "datum.rel_diff > 0 ? datum.x_pos_actual : datum.x_pos_base",
+      "as": "x_pos_actual_color_indicator"  //x-position for the bar that represents the deviation from the base
+    },   
+    {
+      "calculate": "use_colored_deviation == 'false' ? 'actual_color' :  datum.rel_diff > 0 ? positive_color : negative_color ",
+      "as": "color_indicator"     // only use colored indications for positive / negative deviations if parameter is set to true 
     },
     {
       "calculate": "datum.abs_diff > 0 ? datum['Base__format'] : datum['Actual__format']",
@@ -106,7 +131,7 @@
       "as": "actual_label_text_formatted"
     },
     {
-      "calculate": "datum['__selected__'] == 'off' ? 'url(#diagonal-stripe-6-50)' : 'url(#diagonal-stripe-6-50)'",
+      "calculate": "base_type == 'Forecast' ? 'url(#diagonal-stripe-1)' : base_type == 'Target' ? 'url(#diagonal-stripe-10-100)' : base_bar_actual_color",
       "as": "base_bar_fill"
     }
   ],
@@ -144,9 +169,7 @@
         "description": "Base bar",
         "type": "bar",
         "orient": "horizontal",
-        "color": {
-          "expr": "base_color"
-        },
+        "fill": {"expr": "datum.base_bar_fill"},
         "stroke": "black",
         "strokeWidth": 2,        
         "size": {
@@ -156,6 +179,43 @@
       },
       "encoding": {
         "x": {"field": "x_pos_base"},
+        "tooltip": [
+          {
+            "title": "Attribute",
+            "field": "Attribute_Name"
+          },
+          {
+            "title": "Base Value",
+            "field": "base_label_text_formatted"
+          },            
+          {
+            "title": "Actual Value",
+            "field": "actual_label_text_formatted"
+          },
+          {
+            "title": "Absolute Deviation",
+            "field": "text_header"
+          },
+          {
+            "title": "Relative Deviation",
+            "field": "rel_diff_formatted"
+          }
+        ]
+      }
+    },
+    {
+      "mark": {
+        "description": "Actual Value bar Deviation",  //deviation from the Base Bar displayed in red / green. This is overwritten by the actual bar so that only the deviation remains colored.
+        "type": "bar",
+        "size": {"expr": "0.5 * bar_height"},
+        "color": {"expr": "datum.color_indicator"},
+        "yOffset": {
+          "expr": "0.05*bar_height"
+        },
+        "tooltip": true
+      },
+      "encoding": {
+        "x": {"field": "x_pos_actual_color_indicator"},
         "tooltip": [
           {
             "title": "Attribute",
@@ -192,7 +252,7 @@
         "tooltip": true
       },
       "encoding": {
-        "x": {"field": "x_pos_actual"},
+        "x": {"field": "x_pos_actual_uncolored"},
         "tooltip": [
           {
             "title": "Attribute",

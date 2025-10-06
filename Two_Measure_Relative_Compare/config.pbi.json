@@ -1,0 +1,33 @@
+{
+    "autosize": {
+      "type": "fit",
+      "contains": "padding"
+    },
+    "view": {"stroke": "transparent"},
+    "font": "Segoe UI",
+    "background": {
+      "expr": "background_color"
+    },
+    "lineBreak": "|",
+    "text": {
+      "font": "sans-serif",
+      "fontSize": {"expr": "text_size"},
+      "fontStyle": "normal",
+      "fontWeight": "normal",
+      "color": "black"
+    },
+    "bar": {"color": "#CE6C47"},
+    "axisY": {"minExtent": 5},
+    "axis": {
+      "domain": false,
+      "labelFontSize": {
+        "expr": "category_label_size"
+      },
+      "labelPadding": 5,
+      "titleFontSize": 14,
+      "titleFontWeight": "bold",
+      "titleColor": "#605E5C",
+      "gridDash": [1, 5],
+      "gridColor": null
+    }
+  }
