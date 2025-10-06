@@ -1,0 +1,41 @@
+{
+    "autosize": {
+      "type": "fit",
+      "resize": true,
+      "contains": "padding"
+    },
+    "padding": 5,    
+    "view": {"stroke": "transparent"},
+    "font": "Segoe UI",
+    "background": {
+      "expr": "backgroundColor"
+    },
+    "lineBreak": "|",
+    "text": {
+      "font": "sans-serif",
+      "fontSize": {"expr": "textSize"},
+      "fontStyle": "normal",
+      "fontWeight": "normal",
+      "color": "black"
+    },
+    "bar": {"color": "#CE6C47"},
+    "axisY": {
+      "minExtent": 5,
+      "labels": true  //false removes axis labels
+      },
+    "axis": {
+      "domain": false,
+      "labels": false,  //false removes axis labels
+      "ticks":false,  //false removes axis grid ticks
+      "labelFontSize": {
+        "expr": "categoryLabelSize"
+      },
+      "labelPadding": 5,
+      "titleFontSize": 14,
+      "titleFontWeight": "bold",
+      "titleColor": "#605E5C",
+      "title": null,
+      "gridDash": [1, 5],
+      "gridColor": null
+    }
+  }

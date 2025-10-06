@@ -1,0 +1,437 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "description": "Vertical waterfall chart without start value (plain break down by category). Use field names 'category' and 'value' to break down your measure (value) by the categories. Optionally you can also predefine a 'order' if you want to have the categories sorted by a predefined order.",
+    "data": {
+        "name": "dataset",
+        "values": [
+            {
+                "category": "Sales Department A",
+                "value": 10000,
+                "order": 0
+            },
+            {
+                "category": "Sales Department B",
+                "value": 7000,
+                "order": 1
+            },
+            {
+                "category": "Sales Department C",
+                "value": 3000,
+                "order": 2
+            },
+            {
+                "category": "Sales Department D",
+                "value": 5000,
+                "order": 3
+            },
+            {
+                "category": "Fix Costs",
+                "value": -15000,
+                "order": 4
+            }
+
+        ]    },
+    "params": [
+        {
+            "name": "sortByValue", //set this to true if you want the categories to be sorted by value.
+            "value": true
+        },
+        {
+            "name": "leftAlignmentThreshold", //if a data point is nearer than this share of the total domain width at the category, then the text mark will be written inside the bar instead of outside
+            "value": 0.03
+        },
+        {
+            "name": "backgroundColor",
+            "value": "#FFFFFF"
+        },
+        {
+            "name": "posColor",
+            "value": "#00bb2d"
+        },
+        {
+            "name": "negColor",
+            "value": "#d84b20"
+        },
+        {
+            "name": "resultColor",
+            "value": "#808080"
+        },
+        {
+            "name": "connectorColor",
+            "value": "#000000"
+        },
+        {
+            "name": "neutralColor",
+            "value": "#000000"
+        },
+        {
+            "name": "textSize",
+            "value": 11
+        },
+        {
+            "name": "categoryLabelSize",
+            "value": 12
+        }
+    ],
+    "transform": [
+        {
+            "calculate": "isValid(datum.category) ? datum.category : 'not defined (null)'",
+            "as": "category"  //replace null values. These do not work with the rule mark at the end (connection line is lacking without this replacement)
+        },         
+        {
+            "sort": [
+                {
+                    "field": "value",
+                    "order": "descending"
+                },
+                {
+                    "field": "__row__",
+                    "order": "descending"
+                }
+            ],
+            "window": [
+                {
+                    "op": "rank",
+                    "as": "sortOrderByValue"
+                }
+            ]
+        },
+        {
+            "calculate": "datum.order == null ? (sortByValue == true ? datum.sortOrderByValue : datum.__row__) : datum.order",
+            "as": "order_final"
+        }, //use predefined order if present. if not, use order by value if parameter sortByValue is set to true. Otherwise, use predefined sort order from power bi (that is usually by category name).
+        {
+            "joinaggregate": [
+                {
+                    "op": "sum",
+                    "field": "value",
+                    "as": "total"
+                }
+            ]
+        },
+        {
+            "window": [
+                {
+                    "op": "sum",
+                    "field": "value",
+                    "as": "cumulative"
+                }
+            ],
+            "frame": [
+                null,
+                0
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },        
+        {
+            "calculate": "['base','total']",
+            "as": "rowTypes"  //preparation of a cross join with these two categories. The underlying problem is that vega-lite does not support a union operator. And we need to add another 'total' row. The below flatten operator performs this cross join. 
+        },
+        {
+            "flatten": [
+                "rowTypes"
+            ]
+        },
+        {
+            "window": [
+                {
+                    "op": "row_number",
+                    "as": "rn"
+                }
+            ],
+            "groupby": [
+                "rowTypes"
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },
+        {
+            "filter": "datum.rowTypes == 'base' || (datum.rowTypes == 'total' && datum.rn == 1)"  //filter on all 'base' rows and one single row of rowType 'total' (the first row so that this row always exists)
+        },        
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.category : 'Total Result'",
+            "as": "category"  //overwrite category for the 'total' row
+        },
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.order_final : 9999",
+            "as": "order_final"  //overwrite order_final for the 'total' row (always last row!)
+        },
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.value : datum.total",
+            "as": "value" //overwrite value for the 'total' row
+        },
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.cumulative : datum.total",
+            "as": "cumulative"  //overwrite running sum for the 'total' row
+        },        
+        {
+            "calculate": "datum.rowTypes == 'total' ? 'result' : (datum.value > 0 ? 'pos' : 'neg')",
+            "as": "valueSign"
+        },
+        {
+            "calculate": "datum.valueSign == 'result' ? resultColor : (datum.valueSign == 'pos' ? posColor : negColor)",
+            "as": "barColor"  //set the bar colors
+        },
+        {
+            "calculate": "datum.order_final === 0 ? 0 : datum.cumulative - datum.value",
+            "as": "start"
+        },
+        {
+            "calculate": "datum.cumulative",
+            "as": "end"
+        },
+        {
+            "joinaggregate": [
+                {
+                    "op": "min",
+                    "field": "start",
+                    "as": "min_start"
+                },
+                {
+                    "op": "min",
+                    "field": "end",
+                    "as": "min_end"
+                },
+                {
+                    "op": "max",
+                    "field": "start",
+                    "as": "max_start"
+                },
+                {
+                    "op": "max",
+                    "field": "end",
+                    "as": "max_end"
+                }
+            ]
+        },
+        {
+            "calculate": "min(0, min(datum.min_start, datum.min_end))",
+            "as": "domain_min"
+        },
+        {
+            "calculate": "max(0, max(datum.max_start, datum.max_end))",
+            "as": "domain_max"
+        },
+        {
+            "calculate": "datum.domain_max - datum.domain_min",
+            "as": "domain_width"
+        },
+        {
+            "calculate": "(datum.start - datum.domain_min - datum.domain_width) / datum.domain_width + 1",
+            "as": "domainShare_Start"
+        },
+        {
+            "calculate": "(datum.end - datum.domain_min - datum.domain_width ) / datum.domain_width + 1",
+            "as": "domainShare_End"
+        },
+        {
+            "calculate": "abs(datum.end - datum.start)",
+            "as": "bar_width"
+        },
+        {
+            "calculate": "pbiFormat(datum.value, datum.value__format)", //for Vega-Lite use "format(datum.value, '.0f')",
+            "as": "text_x"
+        },
+        {
+            "calculate": "datum.value > 0 ? 'left' : (datum.domainShare_End > leftAlignmentThreshold ? 'right' : 'left')",
+            "as": "alignment"  //use always left alignment for values > 0. For values < 0 we usually want right alignment. An exception is if the text would be written near the category axis (see parameter leftAlignmentThreshold), then an overlap could occur. That's why we use left alignment in these cases to write the value in the bar. 
+        },
+        {
+            "calculate": "datum.alignment === 'left' ? 5 : -5",
+            "as": "dynamic_dx"
+        },
+        {
+            "calculate": "datum.value < 0 && datum.domainShare_End < leftAlignmentThreshold ? datum.start : datum.end",
+            "as": "text_position"  //usually we want the values written next to the end of the bar. The exception is for negative bars that are near the category axis(see parameter leftAlignmentThreshold). In this case we want to write the values at the starting point of the bar to avoid an overlap with the category axis
+        },
+        {
+            "window": [
+                {
+                    "op": "lag",
+                    "field": "end",
+                    "as": "prev_end"
+                }
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },
+        {
+            "window": [
+                {
+                    "op": "lag",
+                    "field": "category",
+                    "as": "prev_label"
+                }
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },
+        {
+            "calculate": "datum.order_final === 0 ? null : datum.prev_end",
+            "as": "connector_x1"
+        }
+    ],
+    "width": "container",
+    "height": "container",
+    "encoding": {
+        "tooltip": [
+            {
+                "field": "category",
+                "title": "Category"
+            },
+            {
+                "field": "value__formatted",
+                "title": "Value"
+            }
+        ]
+    },
+    "layer": [
+        {
+            "mark": {
+                "type": "rule",
+                "description": "Line on the x=0 axis",
+                "stroke": {
+                    "expr": "neutralColor"
+                },
+                "strokeWidth": 1
+            },
+            "encoding": {
+                "x": {
+                    "datum": 0,
+                    "type": "quantitative"
+                }
+            }
+        },
+        {
+            "mark": "bar",
+            "description": "Waterfall bars with dynamic coloring",
+            "encoding": {
+                "y": {
+                    "field": "category",
+                    "type": "ordinal",
+                    "sort": {
+                        "field": "order_final",
+                        "order": "ascending"
+                    },
+                    "axis": {
+                        "labelAngle": 0,
+                        "offset": 10,
+                        "title": null,
+                        "labels": true,
+                        "labelOverlap": "parity",
+                        "labelAlign": "right",
+                        "labelLineHeight": 14,
+                        "labelLimit": 180
+                    },
+                    "scale": {
+                        "paddingInner": 0.4,
+                        "paddingOuter": 0.2
+                    }
+                },
+                "x": {
+                    "field": "start",
+                    "type": "quantitative",
+                    "axis": {
+                        "title": null,
+                        "labels": true,
+                        "labelExpr": "datum.value == 0 ? '0' : ''"
+                    },
+                    "scale": {
+                        "zero": true
+                    }
+                },
+                "x2": {
+                    "field": "end"
+                },
+                "color": {
+                    "field": "barColor",
+                    "type": "nominal",
+                    "scale": null
+                }
+            }
+        },
+        {
+            "mark": {
+                "type": "text",
+                "description": "Text representing the change for each category",
+                "fontSize": {
+                    "expr": "textSize"
+                },
+                "align": {
+                    "expr": "datum.alignment"
+                },
+                "dx": {
+                    "expr": "datum.dynamic_dx"
+                },
+                "clip": false,
+                "dir": "rtl"
+            },
+            "encoding": {
+                "y": {
+                    "field": "category",
+                    "type": "ordinal",
+                    "sort": {
+                        "field": "order_final",
+                        "order": "ascending"
+                    }
+                },
+                "x": {
+                    "field": "text_position",
+                    "type": "quantitative"
+                },
+                "text": {
+                    "field": "text_x"
+                }
+            }
+        },
+        {
+            "transform": [
+                {
+                    "filter": "isValid(datum.prev_label)"
+                }
+            ],
+            "mark": {
+                "type": "rule",
+                "description": "Connecting line between each category in the waterfall graph",
+                "stroke": {
+                    "expr": "connectorColor"
+                },
+                "strokeWidth": 1
+            },
+            "encoding": {
+                "x": {
+                    "field": "connector_x1",
+                    "type": "quantitative"
+                },
+                "y": {
+                    "field": "category",
+                    "type": "ordinal",
+                    "sort": {
+                        "field": "order_final",
+                        "order": "ascending"
+                    }
+                },
+                "y2": {
+                    "field": "prev_label"
+                }
+            }
+        }
+    ]
+}

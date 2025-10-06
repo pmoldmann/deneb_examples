@@ -1,0 +1,479 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "description": "Vertical waterfall chart with start value (comparison between a 'base' and an 'actual' value for each category). Use field names 'category', 'base' (e.g. previous year measure) and 'actual' to break down the changes from the base value to the actual value by each category. Optionally you can also predefine an 'order' if you want to have the categories sorted by a predefined order.",
+    "data": {
+        "name": "dataset",
+        "values": [
+            {
+                "category": "Sales Department A",
+                "base": 10000,
+                "actual": 12000,
+                "order": 0
+            },
+            {
+                "category": "Sales Department B",
+                "base": 7000,
+                "actual": 6000,
+                "order": 1
+            },
+            {
+                "category": "Sales Department C",
+                "base": 3000,
+                "actual": 4000,
+                "order": 2
+            },
+            {
+                "category": "Sales Department D",
+                "base": 5000,
+                "actual": 6000,
+                "order": 3
+            },
+            {
+                "category": "Fix Costs",
+                "base": -15000,
+                "actual": -14000,
+                "order": 4
+            }
+
+        ]
+    },
+    "params": [
+        {
+            "name": "baseName",
+            "value": "Begin Of Period"
+        },        
+        {
+            "name": "actualName",
+            "value": "End Of Period"
+        },         
+        {
+            "name": "sortByValue", //set this to true if you want the categories to be sorted by value.
+            "value": true
+        },
+        {
+            "name": "leftAlignmentThreshold", //if a data point is nearer than this share of the total domain width at the category, then the text mark will be written inside the bar instead of outside
+            "value": 0.10
+        },
+        {
+            "name": "backgroundColor",
+            "value": "#FFFFFF"
+        },
+        {
+            "name": "posColor",
+            "value": "#00bb2d"
+        },
+        {
+            "name": "negColor",
+            "value": "#d84b20"
+        },
+        {
+            "name": "resultColor",
+            "value": "#808080"
+        },
+        {
+            "name": "connectorColor",
+            "value": "#000000"
+        },
+        {
+            "name": "neutralColor",
+            "value": "#000000"
+        },
+        {
+            "name": "textSize",
+            "value": 11
+        },
+        {
+            "name": "categoryLabelSize",
+            "value": 12
+        }
+    ],
+    "transform": [
+        {
+            "calculate": "isValid(datum.category) ? datum.category : 'not defined (null)'",
+            "as": "category"  //replace null values. These do not work with the rule mark at the end (connection line is lacking without this replacement)
+        },         
+        {
+            "calculate": "datum.actual - datum.base",
+            "as": "absDiff"  //calculate absolute difference between actual and base value
+        },   
+        {
+            "joinaggregate": [
+                {
+                    "op": "sum",
+                    "field": "absDiff",
+                    "as": "totalAbsDiff"
+                }
+            ]
+        },              
+        {
+            "sort": [
+                {
+                    "field": "absDiff",
+                    "order": "descending"
+                },
+                {
+                    "field": "__row__",
+                    "order": "descending"
+                }
+            ],
+            "window": [
+                {
+                    "op": "rank",
+                    "as": "sortOrderByValue"
+                }
+            ]
+        },
+        {
+            "calculate": "datum.order == null ? (sortByValue == true ? datum.sortOrderByValue : datum.__row__) : datum.order",
+            "as": "order_final"
+        }, //use predefined order if present. if not, use order by value if parameter sortByValue is set to true. Otherwise, use predefined sort order from power bi (that is usually by category name).
+        {
+            "joinaggregate": [
+                {
+                    "op": "sum",
+                    "field": "base",
+                    "as": "totalBase"
+                }
+            ]
+        },
+        {
+            "joinaggregate": [
+                {
+                    "op": "sum",
+                    "field": "actual",
+                    "as": "totalActual"
+                }
+            ]
+        },   
+        {
+            "calculate": "datum.absDiff / datum.totalBase",
+            "as": "relDiff"  //calculate relative difference between actual and base value
+        },               
+        {
+            "window": [
+                {
+                    "op": "sum",
+                    "field": "absDiff",
+                    "as": "runningSumDiff"
+                }
+            ],
+            "frame": [
+                null,
+                0
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },  
+            
+        {
+            "calculate": "['base',actualName,baseName]",
+            "as": "rowTypes"  //preparation of a cross join with these three categories. The underlying problem is that vega-lite does not support a union operator. And we need to add another 'total' row. The below flatten operator performs this cross join. 
+        },
+        {
+            "flatten": [
+                "rowTypes"
+            ]
+        },
+        {
+            "window": [
+                {
+                    "op": "row_number",
+                    "as": "rn"
+                }
+            ],
+            "groupby": [
+                "rowTypes"
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },
+        {
+            "filter": "datum.rowTypes == 'base' || (datum.rn == 1 && (datum.rowTypes == actualName || datum.rowTypes == baseName))"  //filter on all 'base' rows and one single row of rowType 'total' or 'start' (the first row so that this row always exists)
+        },        
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.category : datum.rowTypes",
+            "as": "category"  //overwrite category for the 'total' and 'start' row
+        },
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.order_final : datum.rowTypes == baseName ? -1 : 9999",
+            "as": "order_final"  //overwrite order_final for the 'total' and 'start' row (always last row!)
+        },
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.absDiff : datum.rowTypes == baseName ? datum.totalBase : datum.totalActual",
+            "as": "absDiff" //overwrite absDiff for the 'total' row
+        },
+        {
+            "calculate": "datum.rowTypes == 'base' ? datum.runningSumDiff : datum.rowTypes == baseName ? 0 : datum.totalAbsDiff",
+            "as": "runningSumDiff"  //overwrite running sum for the 'total' row
+        },        
+        {
+            "calculate": "datum.rowTypes == actualName || datum.rowTypes == baseName ? 'result' : (datum.absDiff > 0 ? 'pos' : 'neg')",
+            "as": "valueSign"
+        },
+        {
+            "calculate": "datum.valueSign == 'result' ? resultColor : (datum.valueSign == 'pos' ? posColor : negColor)",
+            "as": "barColor"  //set the bar colors
+        },
+        {
+            "calculate": "datum.order_final === -1 || datum.order_final === 9999 ? 0 : datum.totalBase + datum.runningSumDiff - datum.absDiff",
+            "as": "start"
+        },
+        {
+            "calculate": "datum.totalBase + datum.runningSumDiff",
+            "as": "end"
+        },
+        {
+            "joinaggregate": [
+                {
+                    "op": "min",
+                    "field": "start",
+                    "as": "min_start"
+                },
+                {
+                    "op": "min",
+                    "field": "end",
+                    "as": "min_end"
+                },
+                {
+                    "op": "max",
+                    "field": "start",
+                    "as": "max_start"
+                },
+                {
+                    "op": "max",
+                    "field": "end",
+                    "as": "max_end"
+                }
+            ]
+        },
+        {
+            "calculate": "min(0, min(datum.min_start, datum.min_end))",
+            "as": "domain_min"
+        },
+        {
+            "calculate": "max(0, max(datum.max_start, datum.max_end))",
+            "as": "domain_max"
+        },
+        {
+            "calculate": "datum.domain_max - datum.domain_min",
+            "as": "domain_width"
+        },
+        {
+            "calculate": "(datum.start - datum.domain_min - datum.domain_width) / datum.domain_width + 1",
+            "as": "domainShare_Start"
+        },
+        {
+            "calculate": "(datum.end - datum.domain_min - datum.domain_width ) / datum.domain_width + 1",
+            "as": "domainShare_End"
+        },
+        {
+            "calculate": "pbiFormat(datum.absDiff, datum.base__format)", //for Vega-Lite use "format(datum.value, '.0f')",
+            "as": "text_x"
+        },
+        {
+            "calculate": "datum.absDiff > 0 ? 'left' : (datum.domainShare_End > leftAlignmentThreshold ? 'right' : 'left')",
+            "as": "alignment"  //use always left alignment for values > 0. For values < 0 we usually want right alignment. An exception is if the text would be written near the category axis (see parameter leftAlignmentThreshold), then an overlap could occur. That's why we use left alignment in these cases to write the value in the bar. 
+        },
+        {
+            "calculate": "datum.alignment === 'left' ? 5 : -5",
+            "as": "dynamic_dx"
+        },
+        {
+            "calculate": "datum.absDiff < 0 && datum.domainShare_End < leftAlignmentThreshold ? datum.start : datum.end",
+            "as": "text_position"  //usually we want the values written next to the end of the bar. The exception is for negative bars that are near the category axis(see parameter leftAlignmentThreshold). In this case we want to write the values at the starting point of the bar to avoid an overlap with the category axis
+        },
+        {
+            "window": [
+                {
+                    "op": "lag",
+                    "field": "end",
+                    "as": "prev_end"
+                }
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },
+        {
+            "window": [
+                {
+                    "op": "lag",
+                    "field": "category",
+                    "as": "prev_label"
+                }
+            ],
+            "sort": [
+                {
+                    "field": "order_final",
+                    "order": "ascending"
+                }
+            ]
+        },
+        {
+            "calculate": "datum.order_final == -1 ? null : datum.prev_end",
+            "as": "connector_x1"
+        }
+    ],
+    "width": "container",
+    "height": "container",
+    "encoding": {
+        "tooltip": [
+            {
+                "field": "category",
+                "title": "Category"
+            },
+            {
+                "field": "text_x",
+                "title": "absolute contribution:"
+            },
+            {
+                "field": "relDiff",
+                "title": "relative contribution:",
+                "format": ".1%"
+            }            
+        ]
+    },
+    "layer": [
+        {
+            "mark": {
+                "type": "rule",
+                "description": "Line on the x=0 axis",
+                "stroke": {
+                    "expr": "neutralColor"
+                },
+                "strokeWidth": 1
+            },
+            "encoding": {
+                "x": {
+                    "datum": 0,
+                    "type": "quantitative"
+                }
+            }
+        },
+        {
+            "mark": "bar",
+            "description": "Waterfall bars with dynamic coloring",
+            "encoding": {
+                "y": {
+                    "field": "category",
+                    "type": "ordinal",
+                    "sort": {
+                        "field": "order_final",
+                        "order": "ascending"
+                    },
+                    "axis": {
+                        "labelAngle": 0,
+                        "offset": 5,
+                        "title": null,
+                        "labels": true,
+                        "labelOverlap": "parity",
+                        "labelAlign": "right",
+                        "labelLineHeight": 14,
+                        "labelLimit": 180
+                    },
+                    "scale": {
+                        "paddingInner": 0.4,
+                        "paddingOuter": 0.2
+                    }
+                },
+                "x": {
+                    "field": "start",
+                    "type": "quantitative",
+                    "axis": {
+                        "title": null,
+                        "labels": true,
+                        "labelExpr": "datum.value == 0 ? '0' : ''"
+                    },
+                    "scale": {
+                        "zero": true
+                    }
+                },
+                "x2": {
+                    "field": "end"
+                },
+                "color": {
+                    "field": "barColor",
+                    "type": "nominal",
+                    "scale": null
+                }
+            }
+        },
+        {
+            "mark": {
+                "type": "text",
+                "description": "Text representing the change for each category",
+                "fontSize": {
+                    "expr": "textSize"
+                },
+                "align": {
+                    "expr": "datum.alignment"
+                },
+                "dx": {
+                    "expr": "datum.dynamic_dx"
+                },
+                "clip": false,
+                "dir": "rtl"
+            },
+            "encoding": {
+                "y": {
+                    "field": "category",
+                    "type": "ordinal",
+                    "sort": {
+                        "field": "order_final",
+                        "order": "ascending"
+                    }
+                },
+                "x": {
+                    "field": "text_position",
+                    "type": "quantitative"
+                },
+                "text": {
+                    "field": "text_x"
+                }
+            }
+        },
+        {
+            "transform": [
+                {
+                    "filter": "isValid(datum.prev_label)"
+                }
+            ],
+            "mark": {
+                "type": "rule",
+                "description": "Connecting line between each category in the waterfall graph",
+                "stroke": {
+                    "expr": "connectorColor"
+                },
+                "strokeWidth": 1
+            },
+            "encoding": {
+                "x": {
+                    "field": "connector_x1",
+                    "type": "quantitative"
+                },
+                "y": {
+                    "field": "category",
+                    "type": "ordinal",
+                    "sort": {
+                        "field": "order_final",
+                        "order": "ascending"
+                    }
+                },
+                "y2": {
+                    "field": "prev_label"
+                }
+            }
+        }
+    ]
+}
